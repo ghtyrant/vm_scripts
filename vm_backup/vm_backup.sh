@@ -2,12 +2,15 @@
 
 # Settings
 BACKUP_DISK_SIZE=100G
+USER=gdrive
+
 USE_AWS=0
-AWS_USER=aws
 AWS_VAULT_NAME=Reefer
 
 USE_GDRIVE=1
-GDRIVE_USER=gdrive
+
+ENCRYPT=1
+GPG_RECIPIENT=tyrantcrp@gmail.com
 
 MAIL_FROM=backup@nukularstrom.de
 MAIL_TO=tyrant@nukularstrom.de
@@ -105,12 +108,18 @@ backup()
   local archive_name="${lv_name}-${timestamp}.tar.gz"
 
   run_cmd chroot $mount_dir ./usr/share/backup/backup.sh "/$archive_name"
+
+  if [ $ENCRYPT -eq 1 ]; then
+    run_cmd su -c "gpg --yes --batch --no-tty --recipient $GPG_RECIPIENT --encrypt $mount_dir/$archive_name" $USER
+    archive_name=$archive_name.gpg
+  fi
+
   echo $archive_name >> /tmp/backup.log
 
   if [ $USE_AWS -eq 1 ]; then
-    run_cmd_log su -c "aws glacier upload-archive --account-id - --vault-name '$AWS_VAULT_NAME' --archive-description '$archive_name' --body '$mount_dir/$archive_name'" $AWS_USER
+    run_cmd_log su -c "aws glacier upload-archive --account-id - --vault-name '$AWS_VAULT_NAME' --archive-description '$archive_name' --body '$mount_dir/$archive_name'" $USER
   elif [ $USE_GDRIVE -eq 1 ]; then
-    run_cmd_log su -c "gdrive upload '$mount_dir/$archive_name'" $GDRIVE_USER
+    run_cmd_log su -c "gdrive upload '$mount_dir/$archive_name'" $USER
   fi
 }
 
