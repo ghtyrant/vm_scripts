@@ -16,7 +16,12 @@ MAIL_FROM=backup@nukularstrom.de
 MAIL_TO=tyrant@nukularstrom.de
 SMTP_SERVER=192.168.100.106:587
 MAIL_ON_SUCCESS=1
-BACKUP_VM=( gitlab database )
+BACKUP_VM=( gitlab database mail )
+
+# Internal variables
+IS_MOUNTED=0
+CURRENT_VM=""
+MOUNT_DIR=""
 
 send_mail()
 {
@@ -35,6 +40,11 @@ run_cmd_log()
       echo "Command '$@' failed with $status" >> /tmp/backup.log
 
       send_mail "Error" "$(cat /tmp/backup.log)"
+      if [ $IS_MOUNTED -eq 1 ]; then
+	IS_MOUNTED=0
+	unmount_lvm $CURRENT_VM $MOUNT_DIR
+      fi
+
       exit 1
   fi
 
@@ -50,6 +60,11 @@ run_cmd()
       echo "Command '$@' failed with $status" >> /tmp/backup.log
 
       send_mail "Error" "$(cat /tmp/backup.log)"
+      if [ $IS_MOUNTED -eq 1 ]; then
+	IS_MOUNTED=0
+	unmount_lvm $CURRENT_VM $MOUNT_DIR
+      fi
+
       exit 1
   fi
 
@@ -97,6 +112,8 @@ unmount_lvm()
   run_cmd dmsetup remove vg0-${lv_bck_name}-cow
 
   run_cmd lvremove -y $lv_bck_path
+
+  IS_MOUNTED=0
 }
 
 backup()
@@ -110,7 +127,7 @@ backup()
   run_cmd chroot $mount_dir ./usr/share/backup/backup.sh "/$archive_name"
 
   if [ $ENCRYPT -eq 1 ]; then
-    run_cmd su -c "gpg --yes --batch --no-tty --recipient $GPG_RECIPIENT --encrypt $mount_dir/$archive_name" $USER
+    run_cmd gpg --yes --batch --no-tty --recipient $GPG_RECIPIENT --encrypt $mount_dir/$archive_name
     archive_name=$archive_name.gpg
   fi
 
@@ -128,13 +145,16 @@ echo "Backup starting ..." > /tmp/backup.log
 for i in "${BACKUP_VM[@]}"
 do
   echo "############# $i" >> /tmp/backup.log
-  mount_dir=$(mount_lvm $i)
+  CURRENT_VM=$i
+  MOUNT_DIR=$(mount_lvm $i)
   if [ $? -ne 0 ]; then
     exit 1
   fi
 
-  backup $i $mount_dir
-  unmount_lvm $i $mount_dir
+  IS_MOUNTED=1
+
+  backup $i $MOUNT_DIR
+  unmount_lvm $i $MOUNT_DIR
 done
 
 if [ $MAIL_ON_SUCCESS -eq 1 ]; then
