@@ -2,8 +2,13 @@
 
 # Settings
 BACKUP_DISK_SIZE=100G
+USE_AWS=0
 AWS_USER=aws
 AWS_VAULT_NAME=Reefer
+
+USE_GDRIVE=1
+GDRIVE_USER=gdrive
+
 MAIL_FROM=backup@nukularstrom.de
 MAIL_TO=tyrant@nukularstrom.de
 SMTP_SERVER=192.168.100.106:587
@@ -101,7 +106,12 @@ backup()
 
   run_cmd chroot $mount_dir ./usr/share/backup/backup.sh "/$archive_name"
   echo $archive_name >> /tmp/backup.log
-  run_cmd_log su -c "aws glacier upload-archive --account-id - --vault-name '$AWS_VAULT_NAME' --archive-description '$archive_name' --body '$mount_dir/$archive_name'" $AWS_USER
+
+  if [ $USE_AWS -eq 1 ]; then
+    run_cmd_log su -c "aws glacier upload-archive --account-id - --vault-name '$AWS_VAULT_NAME' --archive-description '$archive_name' --body '$mount_dir/$archive_name'" $AWS_USER
+  elif [ $USE_GDRIVE -eq 1 ]; then
+    run_cmd_log su -c "gdrive upload '$mount_dir/$archive_name'" $GDRIVE_USER
+  fi
 }
 
 echo "Backup starting ..." > /tmp/backup.log
