@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 
 import yaml
 
+DATA_DISK_FORMAT = 'qcow2'
+DATA_DISK_PATH = '/mnt/data/'
 
 def generate_mac_address(name):
   checksum = hashlib.sha256(name.encode('utf-8')).hexdigest()
@@ -20,6 +22,21 @@ def create_logical_volume(name, size):
 def delete_logical_volume(name):
   print("Deleting logical volume '%s' ..." % (name))
   return subprocess.run(['lvremove', '-y', '/dev/vg0/%s' % name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def create_data_disk(name, size):
+  print("Creating data disk '%s' ..." % (name))
+  path = os.path.join(DATA_DISK_PATH, name + ".qcow2")
+  return subprocess.run(['qemu-img', 'create', '-f', DATA_DISK_FORMAT, path, size])
+
+def format_data_disk(name):
+  print("Formatting data disk '%s' ..." % (name))
+  path = os.path.join(DATA_DISK_PATH, name + ".qcow2")
+  return subprocess.run(['virt-format', '-a', path, '--filesystem', 'ext4'])
+
+def attach_data_disk(name):
+  print("Adding data disk '%s' to VM ..." % (name))
+  path = os.path.join(DATA_DISK_PATH, name + ".qcow2")
+  return subprocess.run(['virsh', 'attach-disk', name, '--source', path, '--target', 'vdb', '--persistent'])
 
 def remove_from_dhcp(name, mac, ip):
   print("Removing '%s' from DHCP ..." % (name))
@@ -102,10 +119,13 @@ def sanity_check(config):
 
 def verify_run(process):
   if process.returncode != 0:
-    print("STDOUT:")
-    print(process.stdout.decode('utf-8'))
-    print("STDERR:")
-    print(process.stderr.decode('utf-8'))
+    if process.stdout:
+      print("STDOUT:")
+      print(process.stdout.decode('utf-8'))
+
+    if process.stderr:
+      print("STDERR:")
+      print(process.stderr.decode('utf-8'))
 
     sys.exit(-1)
 
@@ -130,7 +150,6 @@ def main(mode, path):
   config['ip'] = '192.168.100.%d' % (config['ip'])
   config['lv_name'] = 'lv_%s' % (vm_name)
 
-
   if mode == 'create':
     print("Creating vm '%s' with the following configuration:" % (vm_name))
     print(config)
@@ -139,16 +158,28 @@ def main(mode, path):
       sys.exit(-1)
 
     verify_run(create_logical_volume(config['lv_name'], config['disk']))
+
+
     verify_run(add_to_dhcp(vm_name, config['mac'], config['ip']))
     verify_run(create_virtual_machine(vm_name, config['cores'], config['memory'], config['lv_name'], config['mac']))
+
+    if 'data_disk' in config:
+      verify_run(create_data_disk(vm_name, config['data_disk']))
+      verify_run(format_data_disk(vm_name))
+      verify_run(attach_data_disk(vm_name))
+
   elif mode == 'delete':
     print("Deleting vm '%s' with the following configuration:" % (vm_name))
     print(config)
 
-    verify_run(destroy_virtual_machine(config['name']))
+    # Do not verify this as it fails when the domain is already shut down
+    destroy_virtual_machine(config['name'])
     verify_run(remove_from_dhcp(vm_name, config['mac'], config['ip']))
     verify_run(delete_virtual_machine(vm_name))
     verify_run(delete_logical_volume(config['lv_name']))
+
+  else:
+    print("Unknown mode '%s'" % (mode))
 
 if __name__ == "__main__":
   if len(sys.argv) != 3:
