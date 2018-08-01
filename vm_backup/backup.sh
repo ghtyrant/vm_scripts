@@ -6,8 +6,6 @@ MAIL_VM=mail
 LOG_FILE=/tmp/backup.log
 GPG_RECIPIENT=tyrantcrp@gmail.com
 
-rm -f $LOG_FILE
-
 function log {
   MSG=$*
   echo "$MSG"
@@ -45,3 +43,4 @@ for VM in "$@"; do
 done
 
 send_mail "Successful" "$LOG_FILE"
+rm $LOG_FILE
