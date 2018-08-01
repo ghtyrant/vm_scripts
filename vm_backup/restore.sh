@@ -18,6 +18,8 @@ else
   DAYS_AGO=1
 fi
 
-FILE_ID=$(su -c "gdrive list --no-header --order \"createdTime\" -q \"trashed = false and 'me' in owners and name contains '$VM'\" | sed '${DAYS_AGO}d;q' - | cut -d' ' -f1" $USER)
-su -c "gdrive download --path /tmp/$VM.tar.gz.gpg $FILE_ID" $USER
-gpg --decrypt --yes --batch --no-tty > $TARGET/$VM.tar.gz
+FILE=$(aws s3api list-objects --bucket skyrbackup --prefix "$VM" --query 'reverse(sort_by(Contents,&LastModified))[*].[Key]' --output text | sed "${DAYS_AGO}d;q" -)
+echo $FILE
+aws s3 cp s3://skyrbackup/$FILE $VM.tar.gz.gpg
+gpg --decrypt --yes --batch --no-tty $VM.tar.gz.gpg > $TARGET/$VM.tar.gz
+rm $VM.tar.gz.gpg

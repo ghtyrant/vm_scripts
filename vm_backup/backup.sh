@@ -6,7 +6,7 @@ MAIL_VM=mail
 LOG_FILE=/tmp/backup.log
 GPG_RECIPIENT=tyrantcrp@gmail.com
 
-rm $LOG_FILE
+rm -f $LOG_FILE
 
 function log {
   MSG=$*
@@ -35,7 +35,7 @@ for VM in "$@"; do
   log "---------------------"
   scp root@$IP_ADDR:$TARGET .
   gpg --yes --batch --no-tty --recipient $GPG_RECIPIENT --encrypt $FILENAME
-  gdrive upload $FILENAME.gpg
+  aws s3 cp $FILENAME.gpg s3://skyrbackup/$VM/$FILENAME.gpg
 
   rm $FILENAME.gpg
   rm $FILENAME
