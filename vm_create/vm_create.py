@@ -31,12 +31,12 @@ def create_data_disk(name, size):
 def format_data_disk(name):
   print("Formatting data disk '%s' ..." % (name))
   path = os.path.join(DATA_DISK_PATH, name + ".qcow2")
-  return subprocess.run(['virt-format', '-a', path, '--filesystem', 'ext4'])
+  return subprocess.run(['virt-format', '-a', path, '--filesystem', 'ext4', '--partition'])
 
 def attach_data_disk(name):
   print("Adding data disk '%s' to VM ..." % (name))
   path = os.path.join(DATA_DISK_PATH, name + ".qcow2")
-  return subprocess.run(['virsh', 'attach-disk', name, '--source', path, '--target', 'vdb', '--persistent'])
+  return subprocess.run(['virsh', 'attach-disk', name, '--source', path, '--target', 'vdb', '--persistent', '--driver', 'qemu', '--subdriver', 'qcow2'])
 
 def remove_from_dhcp(name, mac, ip):
   print("Removing '%s' from DHCP ..." % (name))
@@ -174,9 +174,9 @@ def main(mode, path):
 
     # Do not verify this as it fails when the domain is already shut down
     destroy_virtual_machine(config['name'])
-    verify_run(remove_from_dhcp(vm_name, config['mac'], config['ip']))
-    verify_run(delete_virtual_machine(vm_name))
-    verify_run(delete_logical_volume(config['lv_name']))
+    remove_from_dhcp(vm_name, config['mac'], config['ip'])
+    delete_virtual_machine(vm_name)
+    delete_logical_volume(config['lv_name'])
 
   else:
     print("Unknown mode '%s'" % (mode))
