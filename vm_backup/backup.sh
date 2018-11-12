@@ -77,6 +77,9 @@ for VM in "$@"; do
   rm $FILENAME.gpg
   rm $FILENAME
 
+  # Also remove the temporary backup file inside the VM
+  ssh root@$IP_ADDR rm $TARGET
+
   log "Done!"
   log
 
